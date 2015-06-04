@@ -14,13 +14,13 @@
   <string name="profile">Profile</string>
   <string name="profile_summary">Profile name</string>
   <string name="proxy">Server</string>
-  <string name="proxy_summary">Hostname or IP Address of your Shadowsocks server</string>
+  <string name="proxy_summary">Hostname or IP of the remote server</string>
   <string name="remote_port">Remote Port</string>
-  <string name="remote_port_summary">Port number of your Shadowsocks server</string>
+  <string name="remote_port_summary">Port number of the remote server</string>
   <string name="port">Local Port</string>
-  <string name="port_summary">Port number of your Shadowsocks client</string>
+  <string name="port_summary">Port number of the local server</string>
   <string name="sitekey">Password</string>
-  <string name="sitekey_summary">Password of your Shadowsocks server</string>
+  <string name="sitekey_summary">Password of the remote server</string>
   <string name="enc_method">Encrypt Method</string>
 
   <!-- feature category -->
@@ -58,11 +58,15 @@
   <string name="service_failed">Failed to connect the remote server</string>
   <string name="stop">Stop the service</string>
   <string name="stopping">Shutting down...</string>
-  <string name="vpn_error">Error: \"%s\".</string>
+  <string name="vpn_error">%s</string>
+  <string name="enable_nat">Turn on NAT mode.</string>
+  <string name="disable_nat">Turn off NAT mode.</string>
+  <string name="error">ERROR</string>
 
   <!-- alert category -->
   <string name="ok_iknow">OK</string>
-  <string name="port_alert">The port number should be greater than 1024</string>
+  <string name="close">Close</string>
+  <string name="port_alert">The local port number should be greater than 1024</string>
   <string name="port_empty">Port should not be empty</string>
   <string name="proxy_empty">Proxy should not be empty</string>
   <string name="crash_alert">An unexpected exit detected, the context has been reset.
@@ -81,9 +85,16 @@
   <string name="recovery">Reset</string>
   <string name="about">About</string>
   <string name="about_title">Shadowsocks %s</string>
+  <string name="qrcode">QR Code</string>
   <string name="flush_dnscache">Flush DNS Cache</string>
   <string name="flushing">Flushing</string>
   <string name="add_profile">Add Profile</string>
+  <string name="action_export">Export to Clipboard</string>
+  <string name="action_import">Import from Clipboard</string>
+  <string name="action_export_msg">Successfully export!</string>
+  <string name="action_export_err">Failed to export.</string>
+  <string name="action_import_msg">Successfully import!</string>
+  <string name="action_import_err">Failed to import.</string>
 
   <!-- profile -->
   <string name="add_profile_dialog">Add this Shadowsocks Profile?</string>

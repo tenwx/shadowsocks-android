@@ -6,14 +6,14 @@ Help to translate shadowsocks: http://crowdin.net/project/shadowsocks/invite
 
 [![Google Play](http://developer.android.com/images/brand/en_generic_rgb_wo_45.png)](https://play.google.com/store/apps/details?id=com.github.shadowsocks)
 
-### TRAVIS CI STATUS
+### CI STATUS
 
-[![Build Status](https://secure.travis-ci.org/shadowsocks/shadowsocks-android.png)](http://travis-ci.org/shadowsocks/shadowsocks-android)
+[![Build Status](https://drone.io/github.com/shadowsocks/shadowsocks-android/status.png)](https://drone.io/github.com/shadowsocks/shadowsocks-android/latest)
 
 ### PREREQUISITES
 
-* JDK 1.6+
-* SBT 0.12.3
+* JDK 1.7+
+* SBT 0.13.0+
 * Android SDK r21+
 * Android NDK r9+
 
@@ -40,6 +40,7 @@ Help to translate shadowsocks: http://crowdin.net/project/shadowsocks/invite
 
 * Install Android SDK and NDK by run `brew install android-ndk android-sdk`
 * Add `export ANDROID_HOME=/usr/local/Cellar/android-sdk/$version` to your .bashrc , then reopen the shell to load it.
+* Add `export ANDROID_NDK_HOME=/usr/local/Cellar/android-ndk/$version` to your .bashrc , then reopen the shell to load it.
 * echo "y" | android update sdk --filter tools,platform-tools,build-tools-21.0.1,android-21,extra-google-m2repository --no-ui --no-https -a
 * echo "y" | android update sdk --filter extra-android-m2repository --no-ui --no-https -a
 * Create your key following the instructions at http://developer.android.com/guide/publishing/app-signing.html#cert

@@ -40,6 +40,8 @@ package com.github.shadowsocks
 
 import java.util
 import java.io.{OutputStream, InputStream, ByteArrayInputStream, ByteArrayOutputStream, IOException, FileOutputStream}
+import java.util.Locale
+import java.lang.Math
 
 import android.app.backup.BackupManager
 import android.app.{Activity, AlertDialog, ProgressDialog}
@@ -51,9 +53,11 @@ import android.net.{Uri, VpnService}
 import android.os._
 import android.preference._
 import android.util.{DisplayMetrics, Log}
+import android.view.View.OnLongClickListener
 import android.view._
 import android.webkit.{WebView, WebViewClient}
 import android.widget._
+import com.github.mrengineer13.snackbar._
 import com.github.shadowsocks.aidl.{IShadowsocksService, IShadowsocksServiceCallback}
 import com.github.shadowsocks.database._
 import com.github.shadowsocks.preferences.{PasswordEditTextPreference, ProfileEditTextPreference, SummaryEditTextPreference}
@@ -62,12 +66,14 @@ import com.google.android.gms.ads.{AdRequest, AdSize, AdView}
 import com.google.android.gms.analytics.HitBuilders
 import com.google.zxing.integration.android.IntentIntegrator
 import com.nostra13.universalimageloader.core.download.BaseImageDownloader
-import de.keyboardsurfer.android.widget.crouton.{Configuration, Crouton, Style}
 import net.simonvt.menudrawer.MenuDrawer
+import com.joanzapata.android.iconify.Iconify
+import com.joanzapata.android.iconify.Iconify.IconValue
+import com.joanzapata.android.iconify.IconDrawable
+import net.glxn.qrgen.android.QRCode
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.ops._
-import scala.ref.WeakReference
 
 class ProfileIconDownloader(context: Context, connectTimeout: Int, readTimeout: Int)
   extends BaseImageDownloader(context, connectTimeout, readTimeout) {
@@ -204,7 +210,6 @@ class Shadowsocks
       // Update the UI
       if (switchButton != null) switchButton.setEnabled(true)
       if (State.isAvailable(bgService.getState)) {
-        Crouton.cancelAllCroutons()
         setPreferenceEnabled(enabled = true)
       } else {
         changeSwitch(checked = true)
@@ -321,12 +326,12 @@ class Shadowsocks
     }
   }
 
-  private def crash_recovery() {
+  private def crashRecovery() {
     val cmd = new ArrayBuffer[String]()
 
     for (task <- Array("ss-local", "ss-tunnel", "pdnsd", "redsocks", "tun2socks")) {
-      cmd.append("chmod 666 %s%s-nat.pid".format(Path.BASE, task))
-      cmd.append("chmod 666 %s%s-vpn.pid".format(Path.BASE, task))
+      cmd.append("chmod 666 %s%s-nat.pid".formatLocal(Locale.ENGLISH, Path.BASE, task))
+      cmd.append("chmod 666 %s%s-vpn.pid".formatLocal(Locale.ENGLISH, Path.BASE, task))
     }
     Console.runRootCommand(cmd.toArray)
     cmd.clear()
@@ -335,17 +340,17 @@ class Shadowsocks
       try {
         val pid_nat = scala.io.Source.fromFile(Path.BASE + task + "-nat.pid").mkString.trim.toInt
         val pid_vpn = scala.io.Source.fromFile(Path.BASE + task + "-vpn.pid").mkString.trim.toInt
-        cmd.append("kill -9 %d".format(pid_nat))
-        cmd.append("kill -9 %d".format(pid_vpn))
+        cmd.append("kill -9 %d".formatLocal(Locale.ENGLISH, pid_nat))
+        cmd.append("kill -9 %d".formatLocal(Locale.ENGLISH, pid_vpn))
         Process.killProcess(pid_nat)
         Process.killProcess(pid_vpn)
       } catch {
         case e: Throwable => Log.e(Shadowsocks.TAG, "unable to kill " + task)
       }
-      cmd.append("rm -f %s%s-nat.pid".format(Path.BASE, task))
-      cmd.append("rm -f %s%s-nat.conf".format(Path.BASE, task))
-      cmd.append("rm -f %s%s-vpn.pid".format(Path.BASE, task))
-      cmd.append("rm -f %s%s-vpn.conf".format(Path.BASE, task))
+      cmd.append("rm -f %s%s-nat.pid".formatLocal(Locale.ENGLISH, Path.BASE, task))
+      cmd.append("rm -f %s%s-nat.conf".formatLocal(Locale.ENGLISH, Path.BASE, task))
+      cmd.append("rm -f %s%s-vpn.pid".formatLocal(Locale.ENGLISH, Path.BASE, task))
+      cmd.append("rm -f %s%s-vpn.conf".formatLocal(Locale.ENGLISH, Path.BASE, task))
     }
     Console.runCommand(cmd.toArray)
     Console.runRootCommand(cmd.toArray)
@@ -366,19 +371,29 @@ class Shadowsocks
 
   def isTextEmpty(s: String, msg: String): Boolean = {
     if (s == null || s.length <= 0) {
-      Crouton.makeText(this, msg, Style.ALERT).show()
+      new SnackBar.Builder(this)
+        .withMessage(msg)
+        .withActionMessageId(R.string.error)
+        .withStyle(SnackBar.Style.ALERT)
+        .withDuration(SnackBar.LONG_SNACK)
+        .show()
       return true
     }
     false
   }
 
   def cancelStart() {
-    handler.postDelayed(new Runnable {
-      override def run() {
-        clearDialog()
-        changeSwitch(checked = false)
-      }
-    }, 1000)
+    clearDialog()
+    changeSwitch(checked = false)
+  }
+
+  def isReady(): Boolean = {
+    if (!checkText(Key.proxy)) return false
+    if (!checkText(Key.sitekey)) return false
+    if (!checkNumber(Key.localPort, low = false)) return false
+    if (!checkNumber(Key.remotePort, low = true)) return false
+    if (bgService == null) return false
+    true
   }
 
   def prepareStartService() {
@@ -392,9 +407,7 @@ class Shadowsocks
           onActivityResult(Shadowsocks.REQUEST_CONNECT, Activity.RESULT_OK, null)
         }
       } else {
-        if (!serviceStart) {
-          cancelStart()
-        }
+        serviceStart()
       }
     }
   }
@@ -403,7 +416,10 @@ class Shadowsocks
     if (compoundButton eq switchButton) {
       checked match {
         case true =>
-          prepareStartService()
+          if (isReady)
+            prepareStartService()
+          else
+            changeSwitch(checked = false)
         case false =>
           serviceStop()
       }
@@ -479,10 +495,16 @@ class Shadowsocks
     menuAdapter.setListener(this)
     listView.setAdapter(menuAdapter)
     drawer.setMenuView(listView)
-    // The drawable that replaces the up indicator in the action bar
-    drawer.setSlideDrawable(R.drawable.ic_drawer)
-    // Whether the previous drawable should be shown
-    drawer.setDrawerIndicatorEnabled(true)
+
+    if (Utils.isLollipopOrAbove) {
+      drawer.setDrawerIndicatorEnabled(false)
+    } else {
+      // The drawable that replaces the up indicator in the action bar
+      drawer.setSlideDrawable(R.drawable.ic_drawer)
+      // Whether the previous drawable should be shown
+      drawer.setDrawerIndicatorEnabled(true)
+    }
+
     if (!isSinglePane) {
       drawer.openMenu(false)
     }
@@ -498,14 +520,38 @@ class Shadowsocks
     getActionBar.setCustomView(switchLayout)
     getActionBar.setDisplayShowTitleEnabled(false)
     getActionBar.setDisplayShowCustomEnabled(true)
-    getActionBar.setIcon(R.drawable.ic_stat_shadowsocks)
+    if (Utils.isLollipopOrAbove) {
+      getWindow.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+      getWindow.setStatusBarColor(getResources().getColor(R.color.grey3));
+      getActionBar.setDisplayHomeAsUpEnabled(true)
+      getActionBar.setHomeAsUpIndicator(R.drawable.ic_drawer)
+    } else {
+      getActionBar.setIcon(R.drawable.ic_stat_shadowsocks)
+    }
+    title.setOnLongClickListener(new OnLongClickListener {
+      override def onLongClick(v: View): Boolean = {
+        if (Utils.isLollipopOrAbove && bgService != null
+          && (bgService.getState == State.INIT || bgService.getState == State.STOPPED)) {
+          val natEnabled = status.getBoolean(Key.isNAT, false)
+          status.edit().putBoolean(Key.isNAT, !natEnabled).commit()
+          if (!natEnabled) {
+            Toast.makeText(getBaseContext, R.string.enable_nat, Toast.LENGTH_LONG).show()
+          } else {
+            Toast.makeText(getBaseContext, R.string.disable_nat, Toast.LENGTH_LONG).show()
+          }
+          true
+        } else {
+          false
+        }
+      }
+    })
 
     // Register broadcast receiver
     registerReceiver(preferenceReceiver, new IntentFilter(Action.UPDATE_PREFS))
 
     // Bind to the service
     spawn {
-      val isRoot = Console.isRoot
+      val isRoot = (!Utils.isLollipopOrAbove || status.getBoolean(Key.isNAT, false)) && Console.isRoot
       handler.post(new Runnable {
         override def run() {
           status.edit.putBoolean(Key.isRoot, isRoot).commit()
@@ -575,6 +621,9 @@ class Shadowsocks
             h.postDelayed(new Runnable() {
               def run() {
                 val integrator = new IntentIntegrator(Shadowsocks.this)
+                val list = new java.util.ArrayList(IntentIntegrator.TARGET_ALL_KNOWN)
+                list.add("tw.com.quickmark")
+                integrator.setTargetApplications(list)
                 integrator.initiateScan()
                 h.sendEmptyMessage(0)
               }
@@ -587,6 +636,25 @@ class Shadowsocks
       }
     })
     builder.create().show()
+  }
+
+  def reloadProfile() {
+    drawer.closeMenu(true)
+
+    val h = showProgress(getString(R.string.loading))
+
+    handler.postDelayed(new Runnable {
+      def run() {
+        currentProfile = {
+          profileManager.getProfile(settings.getInt(Key.profileId, -1)) getOrElse currentProfile
+        }
+        menuAdapter.updateList(getMenuList, currentProfile.id)
+
+        updatePreferenceScreen()
+
+        h.sendEmptyMessage(0)
+      }
+    }, 600)
   }
 
   def addProfile(profile: Profile) {
@@ -652,7 +720,7 @@ class Shadowsocks
     if (!profile.isDefined) return false
 
     new AlertDialog.Builder(this)
-      .setMessage(String.format(getString(R.string.remove_profile), profile.get.name))
+      .setMessage(String.format(Locale.ENGLISH, getString(R.string.remove_profile), profile.get.name))
       .setCancelable(false)
       .setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
       override def onClick(dialog: DialogInterface, i: Int) = dialog.cancel()
@@ -667,7 +735,7 @@ class Shadowsocks
         currentProfile = profileManager.load(profileId)
         menuAdapter.updateList(getMenuList, currentProfile.id)
 
-        sendBroadcast(new Intent(Action.UPDATE_FRAGMENT))
+        updatePreferenceScreen()
 
         dialog.dismiss()
       }
@@ -680,7 +748,7 @@ class Shadowsocks
 
   def getProfileList: List[Item] = {
     val list = profileManager.getAllProfiles getOrElse List[Profile]()
-    list.map(p => new Item(p.id, p.name, -1, updateProfile, delProfile))
+    list.map(p => new IconItem(p.id, p.name, -1, updateProfile, delProfile))
   }
 
   def getMenuList: List[Any] = {
@@ -692,11 +760,13 @@ class Shadowsocks
     buf ++= getProfileList
 
     buf +=
-      new Item(-400, getString(R.string.add_profile), android.R.drawable.ic_menu_add, newProfile)
+      new DrawableItem(-400, getString(R.string.add_profile), new IconDrawable(this, IconValue.fa_plus_circle)
+        .colorRes(android.R.color.darker_gray).sizeDp(26), newProfile)
 
     buf += new Category(getString(R.string.settings))
 
-    buf += new Item(-100, getString(R.string.recovery), android.R.drawable.ic_menu_revert, _ => {
+    buf += new DrawableItem(-100, getString(R.string.recovery), new IconDrawable(this, IconValue.fa_recycle)
+        .colorRes(android.R.color.darker_gray).sizeDp(26), _ => {
       // send event
       application.tracker.send(new HitBuilders.EventBuilder()
         .setCategory(Shadowsocks.TAG)
@@ -707,7 +777,8 @@ class Shadowsocks
     })
 
     buf +=
-      new Item(-200, getString(R.string.flush_dnscache), android.R.drawable.ic_menu_delete, _ => {
+      new DrawableItem(-200, getString(R.string.flush_dnscache), new IconDrawable(this, IconValue.fa_refresh)
+        .colorRes(android.R.color.darker_gray).sizeDp(26), _ => {
         // send event
         application.tracker.send(new HitBuilders.EventBuilder()
           .setCategory(Shadowsocks.TAG)
@@ -717,7 +788,20 @@ class Shadowsocks
         flushDnsCache()
       })
 
-    buf += new Item(-300, getString(R.string.about), android.R.drawable.ic_menu_info_details, _ => {
+    buf +=
+      new DrawableItem(-300, getString(R.string.qrcode), new IconDrawable(this, IconValue.fa_qrcode)
+        .colorRes(android.R.color.darker_gray).sizeDp(26), _ => {
+        // send event
+        application.tracker.send(new HitBuilders.EventBuilder()
+          .setCategory(Shadowsocks.TAG)
+          .setAction("qrcode")
+          .setLabel(getVersionName)
+          .build())
+        showQrCode()
+      })
+
+    buf += new DrawableItem(-400, getString(R.string.about), new IconDrawable(this, IconValue.fa_info_circle)
+        .colorRes(android.R.color.darker_gray).sizeDp(26), _ => {
       // send event
       application.tracker.send(new HitBuilders.EventBuilder()
         .setCategory(Shadowsocks.TAG)
@@ -761,6 +845,11 @@ class Shadowsocks
       switchButton.setOnCheckedChangeListener(Shadowsocks.this)
     }
     ConfigUtils.refresh(this)
+
+    // Check if profile list changed
+    val id = settings.getInt(Key.profileId, -1)
+    if (id != -1 && id != currentProfile.id)
+      reloadProfile()
   }
 
   private def setPreferenceEnabled(enabled: Boolean) {
@@ -807,7 +896,6 @@ class Shadowsocks
   override def onDestroy() {
     super.onDestroy()
     deattachService()
-    Crouton.cancelAllCroutons()
     unregisterReceiver(preferenceReceiver)
     new BackupManager(this).dataChanged()
     if (handler != null) {
@@ -820,18 +908,17 @@ class Shadowsocks
     val ab = new ArrayBuffer[String]
     ab.append("mount -o rw,remount -t yaffs2 /dev/block/mtdblock3 /system")
     for (executable <- Shadowsocks.EXECUTABLES) {
-      ab.append("cp %s%s /system/bin/".format(Path.BASE, executable))
+      ab.append("cp %s%s /system/bin/".formatLocal(Locale.ENGLISH, Path.BASE, executable))
       ab.append("chmod 755 /system/bin/" + executable)
       ab.append("chown root:shell /system/bin/" + executable)
     }
     ab.append("mount -o ro,remount -t yaffs2 /dev/block/mtdblock3 /system")
     Console.runRootCommand(ab.toArray)
-
   }
 
   def reset() {
 
-    crash_recovery()
+    crashRecovery()
 
     copyAssets(System.getABI)
 
@@ -850,6 +937,31 @@ class Shadowsocks
       reset()
       h.sendEmptyMessage(0)
     }
+  }
+
+  private def dp2px(dp: Int): Int = {
+    val displayMetrics = getBaseContext.getResources.getDisplayMetrics()
+    Math.round(dp * (displayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT))
+  }
+
+  private def showQrCode() {
+    val image = new ImageView(this)
+    image.setPadding(0, dp2px(20), 0, dp2px(20))
+    image.setLayoutParams(new LinearLayout.LayoutParams(-1, -1))
+    val qrcode = QRCode.from(Parser.generate(currentProfile))
+      .withSize(dp2px(250), dp2px(250)).asInstanceOf[QRCode]
+    image.setImageBitmap(qrcode.bitmap())
+
+    new AlertDialog.Builder(this)
+      .setCancelable(true)
+      .setNegativeButton(getString(R.string.close), new DialogInterface.OnClickListener() {
+      override def onClick(dialog: DialogInterface, id: Int) {
+        dialog.cancel()
+      }
+    })
+      .setView(image)
+      .create()
+      .show()
   }
 
   private def flushDnsCache() {
@@ -871,9 +983,7 @@ class Shadowsocks
       resultCode match {
         case Activity.RESULT_OK =>
           prepared = true
-          if (!serviceStart) {
-            cancelStart()
-          }
+          serviceStart()
         case _ =>
           cancelStart()
           Log.e(Shadowsocks.TAG, "Failed to start VpnService")
@@ -907,33 +1017,34 @@ class Shadowsocks
     try {
       val port: Int = Integer.valueOf(text)
       if (!low && port <= 1024) {
-        Crouton.makeText(this, R.string.port_alert, Style.ALERT).show()
+        new SnackBar.Builder(this)
+          .withMessageId(R.string.port_alert)
+          .withActionMessageId(R.string.error)
+          .withStyle(SnackBar.Style.ALERT)
+          .withDuration(SnackBar.LONG_SNACK)
+          .show()
         return false
       }
     } catch {
       case ex: Exception =>
-        Crouton.makeText(this, R.string.port_alert, Style.ALERT).show()
+        new SnackBar.Builder(this)
+          .withMessageId(R.string.port_alert)
+          .withActionMessageId(R.string.error)
+          .withStyle(SnackBar.Style.ALERT)
+          .withDuration(SnackBar.LONG_SNACK)
+          .show()
         return false
     }
     true
   }
 
   /** Called when connect button is clicked. */
-  def serviceStart: Boolean = {
-
-    if (!checkText(Key.proxy)) return false
-    if (!checkText(Key.sitekey)) return false
-    if (!checkNumber(Key.localPort, low = false)) return false
-    if (!checkNumber(Key.remotePort, low = true)) return false
-
-    if (bgService == null) return false
-
+  def serviceStart() {
     bgService.start(ConfigUtils.load(settings))
 
     if (isVpnEnabled) {
       changeSwitch(checked = false)
     }
-    true
   }
 
   private def showAbout() {
@@ -956,7 +1067,7 @@ class Shadowsocks
     }
 
     new AlertDialog.Builder(this)
-      .setTitle(getString(R.string.about_title).format(versionName))
+      .setTitle(getString(R.string.about_title).formatLocal(Locale.ENGLISH, versionName))
       .setCancelable(false)
       .setNegativeButton(getString(R.string.ok_iknow), new DialogInterface.OnClickListener() {
       override def onClick(dialog: DialogInterface, id: Int) {
@@ -994,15 +1105,12 @@ class Shadowsocks
             case State.STOPPED =>
               clearDialog()
               changeSwitch(checked = false)
-              Crouton.cancelAllCroutons()
               if (m != null) {
-                val style = new Style.Builder().setBackgroundColorValue(Style.holoRedLight).build()
-                val config = new Configuration.Builder()
-                  .setDuration(Configuration.DURATION_LONG)
-                  .build()
-                Crouton
-                  .makeText(Shadowsocks.this, getString(R.string.vpn_error).format(m), style)
-                  .setConfiguration(config)
+                new SnackBar.Builder(Shadowsocks.this)
+                  .withMessage(getString(R.string.vpn_error).formatLocal(Locale.ENGLISH, m))
+                  .withActionMessageId(R.string.error)
+                  .withStyle(SnackBar.Style.ALERT)
+                  .withDuration(SnackBar.LONG_SNACK)
                   .show()
               }
               setPreferenceEnabled(enabled = true)
