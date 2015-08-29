@@ -14,8 +14,8 @@ Help to translate shadowsocks: http://crowdin.net/project/shadowsocks/invite
 
 * JDK 1.7+
 * SBT 0.13.0+
-* Android SDK r21+
-* Android NDK r9+
+* Android SDK r24+
+* Android NDK r10d+
 
 ### BUILD
 
@@ -57,6 +57,16 @@ Help to translate shadowsocks: http://crowdin.net/project/shadowsocks/invite
     # Build the apk
     sbt clean android:package-release
 ```
+
+## OPEN SOURCE LICENSES
+
+* shadowsocks-libev: [GPLv3](https://github.com/shadowsocks/shadowsocks-libev/blob/master/LICENSE)
+* tun2socks: [BSD](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/badvpn/COPYING)
+* redsocks: [APL 2.0](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/redsocks/README)
+* OpenSSL: [OpenSSL](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/openssl/NOTICE)
+* pdnsd: [GPLv3](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/pdnsd/COPYING)
+* libev: [GPLv2](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/libev/LICENSE)
+* libevent: [BSD](https://github.com/shadowsocks/shadowsocks-android/blob/master/src/main/jni/libevent/LICENSE)
 
 ### LICENSE
 

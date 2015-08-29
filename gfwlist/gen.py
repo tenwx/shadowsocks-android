@@ -24,6 +24,8 @@ def main():
         "0.0.0.0/8",
         "10.0.0.0/8",
         "100.64.0.0/10",
+        "112.124.47.0/24",
+        "114.114.114.0/24",
         "127.0.0.0/8",
         "169.254.0.0/16",
         "172.16.0.0/12",
@@ -39,16 +41,18 @@ def main():
     ]))
     china_list_set += internal_list
 
-    # 取反
-    all = IPy.IPSet([IPy.IP("0.0.0.0/0")])
-    # 剔除所有孤立的C段
-    for ip in china_list_set:
-        all.discard(ip)
+    all = china_list_set
 
-    filter = itertools.ifilter(lambda x: len(x) <= 65536, all)
-    for ip in filter:
-        all.discard(ip)
-        all.add(IPy.IP(ip.strNormal(0)).make_net('255.255.0.0'))
+    # 取反
+    # all = IPy.IPSet([IPy.IP("0.0.0.0/0")])
+    # 剔除所有孤立的C段
+    # for ip in china_list_set:
+    #     all.discard(ip)
+
+    # filter = itertools.ifilter(lambda x: len(x) <= 65536, all)
+    # for ip in filter:
+    #     all.discard(ip)
+    #     all.add(IPy.IP(ip.strNormal(0)).make_net('255.255.0.0'))
 
     # 输出结果
     for ip in all:

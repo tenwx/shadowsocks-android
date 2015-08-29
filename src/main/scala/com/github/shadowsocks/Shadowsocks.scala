@@ -185,6 +185,7 @@ class Shadowsocks
   // Variables
   var switchButton: Switch = null
   var progressDialog: ProgressDialog = null
+  var progressTag = -1
   var state = State.INIT
   var prepared = false
   var currentProfile = new Profile
@@ -218,6 +219,11 @@ class Shadowsocks
       state = bgService.getState
       // set the listener
       switchButton.setOnCheckedChangeListener(Shadowsocks.this)
+
+      if (!status.getBoolean(getVersionName, false)) {
+        status.edit.putBoolean(getVersionName, true).commit()
+        recovery();
+      }
     }
 
     override def onServiceDisconnected(name: ComponentName) {
@@ -271,9 +277,10 @@ class Shadowsocks
     switchButton.setOnCheckedChangeListener(this)
   }
 
-  private def showProgress(msg: String): Handler = {
+  private def showProgress(msg: Int): Handler = {
     clearDialog()
-    progressDialog = ProgressDialog.show(this, "", msg, true, false)
+    progressDialog = ProgressDialog.show(this, "", getString(msg), true, false)
+    progressTag = msg
     new Handler {
       override def handleMessage(msg: Message) {
         clearDialog()
@@ -397,7 +404,7 @@ class Shadowsocks
   }
 
   def prepareStartService() {
-    showProgress(getString(R.string.connecting))
+    showProgress(R.string.connecting)
     spawn {
       if (isVpnEnabled) {
         val intent = VpnService.prepare(this)
@@ -474,20 +481,14 @@ class Shadowsocks
 
     addPreferencesFromResource(R.xml.pref_all)
 
+    // Update the profile
+    if (!status.getBoolean(getVersionName, false)) {
+      currentProfile = profileManager.create()
+    }
+
     // Initialize the profile
     currentProfile = {
       profileManager.getProfile(settings.getInt(Key.profileId, -1)) getOrElse currentProfile
-    }
-
-    // Update the profile
-    if (!status.getBoolean(getVersionName, false)) {
-      val h = showProgress(getString(R.string.initializing))
-      status.edit.putBoolean(getVersionName, true).apply()
-      spawn {
-        reset()
-        currentProfile = profileManager.create()
-        h.sendEmptyMessage(0)
-      }
     }
 
     // Initialize drawer
@@ -617,7 +618,7 @@ class Shadowsocks
         which match {
           case 0 =>
             dialog.dismiss()
-            val h = showProgress(getString(R.string.loading))
+            val h = showProgress(R.string.loading)
             h.postDelayed(new Runnable() {
               def run() {
                 val integrator = new IntentIntegrator(Shadowsocks.this)
@@ -641,7 +642,7 @@ class Shadowsocks
   def reloadProfile() {
     drawer.closeMenu(true)
 
-    val h = showProgress(getString(R.string.loading))
+    val h = showProgress(R.string.loading)
 
     handler.postDelayed(new Runnable {
       def run() {
@@ -660,7 +661,7 @@ class Shadowsocks
   def addProfile(profile: Profile) {
     drawer.closeMenu(true)
 
-    val h = showProgress(getString(R.string.loading))
+    val h = showProgress(R.string.loading)
 
     handler.postDelayed(new Runnable {
       def run() {
@@ -679,7 +680,7 @@ class Shadowsocks
   def addProfile(id: Int) {
     drawer.closeMenu(true)
 
-    val h = showProgress(getString(R.string.loading))
+    val h = showProgress(R.string.loading)
 
     handler.postDelayed(new Runnable {
       def run() {
@@ -697,7 +698,7 @@ class Shadowsocks
   def updateProfile(id: Int) {
     drawer.closeMenu(true)
 
-    val h = showProgress(getString(R.string.loading))
+    val h = showProgress(R.string.loading)
 
     handler.postDelayed(new Runnable {
       def run() {
@@ -916,10 +917,7 @@ class Shadowsocks
     Console.runRootCommand(ab.toArray)
   }
 
-  def reset() {
-
-    crashRecovery()
-
+  def install() {
     copyAssets(System.getABI)
 
     val ab = new ArrayBuffer[String]
@@ -927,12 +925,18 @@ class Shadowsocks
       ab.append("chmod 755 " + Path.BASE + executable)
     }
     Console.runCommand(ab.toArray)
+  }
 
+  def reset() {
+
+    crashRecovery()
+
+    install()
   }
 
   private def recovery() {
-    val h = showProgress(getString(R.string.recovering))
     serviceStop()
+    val h = showProgress(R.string.recovering)
     spawn {
       reset()
       h.sendEmptyMessage(0)
@@ -965,7 +969,7 @@ class Shadowsocks
   }
 
   private def flushDnsCache() {
-    val h = showProgress(getString(R.string.flushing))
+    val h = showProgress(R.string.flushing)
     spawn {
       Utils.toggleAirplaneMode(getBaseContext)
       h.sendEmptyMessage(0)
@@ -1083,6 +1087,7 @@ class Shadowsocks
     if (progressDialog != null) {
       progressDialog.dismiss()
       progressDialog = null
+      progressTag = -1
     }
   }
 
@@ -1096,14 +1101,19 @@ class Shadowsocks
               if (progressDialog == null) {
                 progressDialog = ProgressDialog
                   .show(Shadowsocks.this, "", getString(R.string.connecting), true, true)
+                progressTag = R.string.connecting
               }
               setPreferenceEnabled(enabled = false)
             case State.CONNECTED =>
-              clearDialog()
+              if (progressTag == R.string.connecting) {
+                clearDialog()
+              }
               changeSwitch(checked = true)
               setPreferenceEnabled(enabled = false)
             case State.STOPPED =>
-              clearDialog()
+              if (progressTag == R.string.stopping) {
+                clearDialog()
+              }
               changeSwitch(checked = false)
               if (m != null) {
                 new SnackBar.Builder(Shadowsocks.this)
@@ -1118,6 +1128,7 @@ class Shadowsocks
               if (progressDialog == null) {
                 progressDialog = ProgressDialog
                   .show(Shadowsocks.this, "", getString(R.string.stopping), true, true)
+                progressTag = R.string.stopping
               }
           }
         }
