@@ -1,36 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:orientation="vertical"
     android:duplicateParentState="false">
-  <RelativeLayout
-      android:layout_width="fill_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="6dp"
-      android:layout_marginBottom="8dp">
-    <TextView
-        android:id="@+id/bypassLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:layout_marginLeft="16dp"
-        android:textSize="18sp"
-        android:text="@string/bypass_apps"
-        android:layout_alignParentLeft="true"
-        android:layout_centerVertical="true"/>
+  <include layout="@layout/toolbar_light_dark"/>
+  <LinearLayout android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:paddingLeft="48dp"
+                android:paddingStart="48dp"
+                android:elevation="1dp"
+                android:background="@android:color/white"
+                android:orientation="vertical"
+                tools:ignore="RtlSymmetry">
+    <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp">
+      <TextView
+              android:layout_width="0dp"
+              android:layout_weight="1"
+              android:layout_height="wrap_content"
+              android:padding="4dp"
+              android:gravity="center_vertical"
+              android:textSize="18sp"
+              android:text="@string/on"/>
+      <Switch android:checked="true"
+              android:id="@+id/onSwitch"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"/>
+    </LinearLayout>
+    <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp">
+      <TextView
+              android:id="@+id/bypassLabel"
+              android:layout_width="0dp"
+              android:layout_weight="1"
+              android:layout_height="wrap_content"
+              android:padding="4dp"
+              android:gravity="center_vertical"
+              android:textSize="18sp"
+              android:text="@string/bypass_apps"/>
 
-    <Switch
-        android:id="@+id/bypassSwitch"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentRight="true"
-        android:layout_centerVertical="true"
-        android:layout_marginRight="16dp"/>
-  </RelativeLayout>
-  <ListView
-      android:layout_width="fill_parent"
-      android:layout_height="wrap_content"
-      android:id="@+id/applistview"/>
+      <Switch
+              android:id="@+id/bypassSwitch"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"/>
+    </LinearLayout>
+  </LinearLayout>
+  <FrameLayout android:layout_width="fill_parent"
+               android:layout_height="0dp"
+               android:layout_weight="1">
+    <ProgressBar android:id="@+id/loading"
+                 android:layout_width="wrap_content"
+                 android:layout_height="wrap_content"
+                 android:layout_gravity="center" />
+    <ListView
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:id="@+id/applistview"
+            android:visibility="gone"/>
+  </FrameLayout>
 </LinearLayout>

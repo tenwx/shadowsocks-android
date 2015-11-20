@@ -51,16 +51,16 @@ object ConfigUtils {
     " log_debug = off;" +
     " log_info = off;" +
     " log = stderr;" +
-    " daemon = on;" +
+    " daemon = off;" +
     " redirector = iptables;" +
-    "}" +
+    " }\n" +
     "redsocks {" +
     " local_ip = 127.0.0.1;" +
     " local_port = 8123;" +
     " ip = 127.0.0.1;" +
     " port = %d;" +
     " type = socks5;" +
-    "}"
+    " }"
 
   val PDNSD_LOCAL =
     """
@@ -74,15 +74,14 @@ object ConfigUtils {
       | min_ttl = 15m;
       | max_ttl = 1w;
       | timeout = 10;
-      | daemon = on;
-      | pid_file = %s;
+      | daemon = off;
       |}
       |
       |server {
       | label = "local";
       | ip = 127.0.0.1;
       | port = %d;
-      | reject = ::/0;
+      | %s
       | reject_policy = negate;
       | reject_recursively = on;
       | timeout = 5;
@@ -109,8 +108,7 @@ object ConfigUtils {
       | min_ttl = 15m;
       | max_ttl = 1w;
       | timeout = 10;
-      | daemon = on;
-      | pid_file = "%s";
+      | daemon = off;
       |}
       |
       |server {
@@ -153,8 +151,7 @@ object ConfigUtils {
       | min_ttl = 15m;
       | max_ttl = 1w;
       | timeout = 10;
-      | daemon = on;
-      | pid_file = "%s";
+      | daemon = off;
       |}
       |
       |server {
@@ -174,7 +171,7 @@ object ConfigUtils {
       | label = "local-server";
       | ip = 127.0.0.1;
       | port = %d;
-      | reject = ::/0;
+      | %s
       | reject_policy = negate;
       | reject_recursively = on;
       |}
@@ -198,14 +195,14 @@ object ConfigUtils {
   }
 
   def refresh(context: Context) {
-    val holder = context.getApplicationContext.asInstanceOf[ShadowsocksApplication].containerHolder
+    val holder = ShadowsocksApplication.containerHolder
     if (holder != null) holder.refresh()
   }
 
-  def getRejectList(context: Context, app: ShadowsocksApplication): String = {
+  def getRejectList(context: Context): String = {
     val default = context.getString(R.string.reject)
     try {
-      val container = app.containerHolder.getContainer
+      val container = ShadowsocksApplication.containerHolder.getContainer
       val update = container.getString("reject")
       if (update == null || update.isEmpty) default else update
     } catch {
@@ -213,10 +210,10 @@ object ConfigUtils {
     }
   }
 
-  def getBlackList(context: Context, app: ShadowsocksApplication): String = {
+  def getBlackList(context: Context): String = {
     val default = context.getString(R.string.black_list)
     try {
-      val container = app.containerHolder.getContainer
+      val container = ShadowsocksApplication.containerHolder.getContainer
       val update = container.getString("black_list")
       if (update == null || update.isEmpty) default else update
     } catch {
@@ -233,25 +230,24 @@ object ConfigUtils {
       .readTimeout(2000)
       .send("sig="+sig)
       .body
-    val proxies = util.Random.shuffle(list.split('|').toSeq).toSeq
-    val proxy = proxies(0).split(':')
+    val proxies = util.Random.shuffle(list.split('|').toSeq)
+    val proxy = proxies.head.split(':')
 
     val host = proxy(0).trim
     val port = proxy(1).trim.toInt
     val password = proxy(2).trim
     val method = proxy(3).trim
 
-    new Config(config.isGlobalProxy, config.isGFWList, config.isBypassApps, config.isTrafficStat,
-      config.isUdpDns, config.profileName, host, password, method, config.proxiedAppString, config.route, port,
-      config.localPort)
+    new Config(config.isProxyApps, config.isBypassApps, config.isUdpDns, config.isAuth, config.isIpv6,
+      config.profileName, host, password, method, config.proxiedAppString, config.route, port, config.localPort)
   }
 
   def load(settings: SharedPreferences): Config = {
-    val isGlobalProxy = settings.getBoolean(Key.isGlobalProxy, false)
-    val isGFWList = settings.getBoolean(Key.isGFWList, false)
+    val isProxyApps = settings.getBoolean(Key.isProxyApps, false)
     val isBypassApps = settings.getBoolean(Key.isBypassApps, false)
-    val isTrafficStat = settings.getBoolean(Key.isTrafficStat, false)
     val isUdpDns = settings.getBoolean(Key.isUdpDns, false)
+    val isAuth = settings.getBoolean(Key.isAuth, false)
+    val isIpv6 = settings.getBoolean(Key.isIpv6, false)
 
     val profileName = settings.getString(Key.profileName, "default")
     val proxy = settings.getString(Key.proxy, "127.0.0.1")
@@ -259,21 +255,11 @@ object ConfigUtils {
     val encMethod = settings.getString(Key.encMethod, "table")
     val route = settings.getString(Key.route, "all")
 
-    val remotePort: Int = try {
-      settings.getString(Key.remotePort, "1984").toInt
-    } catch {
-      case ex: NumberFormatException =>
-        1984
-    }
-    val localPort: Int = try {
-      settings.getString(Key.localPort, "1984").toInt
-    } catch {
-      case ex: NumberFormatException =>
-        1984
-    }
+    val remotePort = settings.getInt(Key.remotePort, 1984)
+    val localPort = settings.getInt(Key.localPort, 1984)
     val proxiedAppString = settings.getString(Key.proxied, "")
 
-    new Config(isGlobalProxy, isGFWList, isBypassApps, isTrafficStat, isUdpDns, profileName, proxy,
-      sitekey, encMethod, proxiedAppString, route, remotePort, localPort)
+    new Config(isProxyApps, isBypassApps, isUdpDns, isAuth, isIpv6, profileName, proxy, sitekey, encMethod,
+      proxiedAppString, route, remotePort, localPort)
   }
 }

@@ -38,22 +38,25 @@
  */
 package com.github.shadowsocks.utils
 
-import android.content.{Intent, Context}
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.graphics.drawable.{BitmapDrawable, Drawable}
-import android.util.{Base64, Log}
 import java.io._
-import java.net.{UnknownHostException, InetAddress, NetworkInterface}
-import org.apache.http.conn.util.InetAddressUtils
-import org.xbill.DNS._
-import android.graphics._
+import java.net._
+import java.security.MessageDigest
+
+import android.animation.{AnimatorListenerAdapter, Animator}
 import android.app.ActivityManager
+import android.content.pm.{ApplicationInfo, PackageManager}
+import android.content.{Context, Intent}
+import android.graphics._
+import android.graphics.drawable.{BitmapDrawable, Drawable}
 import android.os.Build
 import android.provider.Settings
-import scala.Some
-import java.security.MessageDigest
-import com.github.shadowsocks.{BuildConfig}
+import android.support.v4.content.ContextCompat
+import android.util.{DisplayMetrics, Base64, Log}
+import android.view.View.MeasureSpec
+import android.view.{Gravity, View, Window}
+import android.widget.Toast
+import com.github.shadowsocks.{ShadowsocksApplication, BuildConfig}
+import org.xbill.DNS._
 
 
 object Utils {
@@ -73,20 +76,13 @@ object Utils {
   val TIME_OUT: Int = -99
   var initialized: Boolean = false
   var hasRedirectSupport: Int = -1
-  var isRoot: Int = -1
   var shell: String = null
   var root_shell: String = null
   var iptables: String = null
   var data_path: String = null
   var rootTries = 0
 
-  def isLollipopOrAbove: Boolean = {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      true
-    } else {
-      false
-    }
-  }
+  def isLollipopOrAbove: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
 
   def getSignature(context: Context): String = {
     val info = context
@@ -96,6 +92,9 @@ object Utils {
     mdg.update(info.signatures(0).toByteArray)
     new String(Base64.encode(mdg.digest, 0))
   }
+
+  def dpToPx(context: Context, dp: Int): Int =
+    Math.round(dp * (context.getResources.getDisplayMetrics.xdpi / DisplayMetrics.DENSITY_DEFAULT))
 
   /*
      * round or floor depending on whether you are using offsets(floor) or
@@ -127,26 +126,43 @@ object Utils {
     bitmap
   }
 
+  // Based on: http://stackoverflow.com/a/21026866/2245107
+  def positionToast(toast: Toast, view: View, window: Window, offsetX: Int = 0, offsetY: Int = 0) = {
+    val rect = new Rect
+    window.getDecorView.getWindowVisibleDisplayFrame(rect)
+    val viewLocation = new Array[Int](2)
+    view.getLocationInWindow(viewLocation)
+    val metrics = new DisplayMetrics
+    window.getWindowManager.getDefaultDisplay.getMetrics(metrics)
+    val toastView = toast.getView
+    toastView.measure(MeasureSpec.makeMeasureSpec(metrics.widthPixels, MeasureSpec.UNSPECIFIED),
+      MeasureSpec.makeMeasureSpec(metrics.heightPixels, MeasureSpec.UNSPECIFIED))
+    toast.setGravity(Gravity.LEFT | Gravity.TOP,
+      viewLocation(0) - rect.left + (view.getWidth - toast.getView.getMeasuredWidth) / 2 + offsetX,
+      viewLocation(1) - rect.top + view.getHeight + offsetY)
+    toast
+  }
+
+  def crossFade(context: Context, from: View, to: View) {
+    def shortAnimTime = context.getResources.getInteger(android.R.integer.config_shortAnimTime)
+    to.setAlpha(0)
+    to.setVisibility(View.VISIBLE)
+    to.animate().alpha(1).setDuration(shortAnimTime)
+    from.animate().alpha(0).setDuration(shortAnimTime).setListener(new AnimatorListenerAdapter {
+      override def onAnimationEnd(animation: Animator) = from.setVisibility(View.GONE)
+    })
+  }
+
   // Blocked > 3 seconds
   def toggleAirplaneMode(context: Context) {
-    if (Build.VERSION.SDK_INT >= 17) {
-      toggleAboveApiLevel17()
-    } else {
+    if (ShadowsocksApplication.isRoot) {
+      Console.runRootCommand(Array("ndc resolver flushdefaultif", "ndc resolver flushif wlan0"))
+    } else if (Build.VERSION.SDK_INT < 17) {
       toggleBelowApiLevel17(context)
     }
   }
 
-  private def toggleAboveApiLevel17() {
-    // Android 4.2 and above
-
-    Console.runRootCommand(Array("ndc resolver flushdefaultif", "ndc resolver flushif wlan0"))
-
-    //Utils.runRootCommand("settings put global airplane_mode_on 1\n"
-    //  + "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true\n"
-    //  + "settings put global airplane_mode_on 0\n"
-    //  + "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false\n")
-  }
-
+  //noinspection ScalaDeprecation
   private def toggleBelowApiLevel17(context: Context) {
     // Android 4.2 below
     Settings.System.putInt(context.getContentResolver, Settings.System.AIRPLANE_MODE_ON, 1)
@@ -198,7 +214,7 @@ object Utils {
         }
       }
     } catch {
-      case e: Exception => None
+      case e: Exception =>
     }
     None
   }
@@ -233,6 +249,9 @@ object Utils {
     None
   }
 
+  private lazy val isNumericMethod = classOf[InetAddress].getMethod("isNumeric", classOf[String])
+  def isNumeric(address: String): Boolean = isNumericMethod.invoke(null, address).asInstanceOf[Boolean]
+
   /**
    * Get local IPv4 address
    */
@@ -245,9 +264,8 @@ object Utils {
         while (addrs.hasMoreElements) {
           val addr = addrs.nextElement()
           if (!addr.isLoopbackAddress && !addr.isLinkLocalAddress) {
-            val sAddr = addr.getHostAddress.toUpperCase
-            if (InetAddressUtils.isIPv4Address(sAddr)) {
-              return Some(sAddr)
+            if (addr.isInstanceOf[Inet4Address]) {
+              return Some(addr.getHostAddress.toUpperCase)
             }
           }
         }
@@ -271,8 +289,7 @@ object Utils {
         while (addrs.hasMoreElements) {
           val addr = addrs.nextElement()
           if (!addr.isLoopbackAddress && !addr.isLinkLocalAddress) {
-            val sAddr = addr.getHostAddress.toUpperCase
-            if (InetAddressUtils.isIPv6Address(sAddr)) {
+            if (addr.isInstanceOf[Inet6Address]) {
               if (BuildConfig.DEBUG) Log.d(TAG, "IPv6 address detected")
               return true
             }
@@ -338,7 +355,7 @@ object Utils {
 
   def getAppIcon(c: Context, packageName: String): Drawable = {
     val pm: PackageManager = c.getPackageManager
-    val icon: Drawable = c.getResources.getDrawable(android.R.drawable.sym_def_app_icon)
+    val icon: Drawable = ContextCompat.getDrawable(c, android.R.drawable.sym_def_app_icon)
     try {
       pm.getApplicationIcon(packageName)
     } catch {
@@ -348,7 +365,7 @@ object Utils {
 
   def getAppIcon(c: Context, uid: Int): Drawable = {
     val pm: PackageManager = c.getPackageManager
-    val icon: Drawable = c.getResources.getDrawable(android.R.drawable.sym_def_app_icon)
+    val icon: Drawable = ContextCompat.getDrawable(c, android.R.drawable.sym_def_app_icon)
     val packages: Array[String] = pm.getPackagesForUid(uid)
     if (packages != null) {
       if (packages.length >= 1) {

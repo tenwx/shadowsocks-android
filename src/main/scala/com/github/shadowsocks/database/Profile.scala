@@ -64,35 +64,32 @@ class Profile {
   var method: String = "rc4"
 
   @DatabaseField
-  var date: String = ""
-
-  @DatabaseField
   var route: String = "all"
 
   @DatabaseField
-  var upload: Int = 0
-
-  @DatabaseField
-  var download: Int = 0
-
-  @DatabaseField
-  var chnroute: Boolean = true
-
-  @DatabaseField
-  var global: Boolean = true
+  var proxyApps: Boolean = false
 
   @DatabaseField
   var bypass: Boolean = false
 
   @DatabaseField
-  var traffic: Boolean = false
+  var udpdns: Boolean = false
 
   @DatabaseField
-  var udpdns: Boolean = false
+  var auth: Boolean = false
+
+  @DatabaseField
+  var ipv6: Boolean = false
 
   @DatabaseField(dataType = DataType.LONG_STRING)
   var individual: String = ""
 
-  @DatabaseField(dataType = DataType.LONG_STRING)
-  var description: String = ""
+  @DatabaseField
+  var tx: Long = 0
+
+  @DatabaseField
+  var rx: Long = 0
+
+  @DatabaseField
+  val date: java.util.Date = new java.util.Date()
 }
